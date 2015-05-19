@@ -1,6 +1,8 @@
 #ifndef _BC_RABIN_H_
 #define _BC_RABIN_H_
 
+#include"db.h"
+
 
 #define M (0x8000000000000000)
 
@@ -20,11 +22,13 @@
 
 int bc_rabin_init(void);
 int bc_rabin_roll(char *pdata, 
-				uint32_t size, 
-				uint32_t *offset,
-				uint64_t *roll);
+					uint32_t size, 
+					uint32_t *blksize,
+					uint64_t *roll,
+                    bool *natural_boundary,
+                    bool *special);
 
-
+int md5hash(char *data, uint32_t len, bc_chunk_id_t *hash);
 
 #endif /*_BC_RABIN_H_*/
 
