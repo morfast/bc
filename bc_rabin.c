@@ -132,12 +132,66 @@ int bc_split_into_block(uint32_t session_id, char *pdata,
     chunk_grp->chunk_cnt = ichunk;
 }
 
-int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len)
+int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len,
+              char **out_buf, int *out_buf_len, int *remain_len)
 {
     bc_para_t bc_para;
+    bc_chunkgrp_t *chunk_grp;
+    bc_chunk_t  *chunk;
+    int i, nchunk;
+    int olen;
+
 
     bc_split_into_block(session_id, in_buf, in_buf_len, &bc_para);
     //bc_db_en_data_process(&bc_para);
+    /* grab the result */
+    chunk_grp = &(bc_para.chunkgrp);
+    nchunk = chunkgrp->chunk_cnt;
+
+    /* count the total length of the output buffer */
+    olen = 0;
+    for(i = 0; i < nchunk; i++) {
+        chunk = (chunkgrp->data_chunk) + i;
+        if ((chunk->start != NULL) && 
+            (chunk->srec_id == NULL)) {
+            /* new chunk */
+            // value
+            olen += (chunk->len);
+            // length
+            if (len < 65536) {
+                olen += 2;
+            } else {
+                olen += 4;
+            }
+            // type
+            olen += 1;
+        } else if ((chunk->start == NULL) &&
+              (chunk->srec_id != NULL)) {
+            /* old chunk */
+            olen += (db_srec_id_t + 3);
+        }
+    }
+
+    /* allocate output buffer */
+    *out_buf_len = olen;
+    *out_buf = (char *)malloc(olen);
+
+    /* encode */
+    int j = 0;
+    for(i = 0; i < nchunk; i++) {
+        chunk = (chunkgrp->data_chunk) + i;
+        if ((chunk->start != NULL) && 
+            (chunk->srec_id == NULL)) {
+            /* new chunk */
+            out_buf[i++] = ; /* type */
+            PUTSHORT(out_buf+i, chunk->len);
+
+
+        } else if ((chunk->start == NULL) &&
+              (chunk->srec_id != NULL)) {
+            /* old chunk */
+        }
+    }
 
     return 0;
     
