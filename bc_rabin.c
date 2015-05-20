@@ -237,11 +237,31 @@ int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len,
         memcpy(pout, in_buf + (in_buf_len - *remain_len), *remain_len);
     }
 
+    /* free the input buffer */
+    free(in_buf);
 
     return 0;
     
 }
 
-        
+int bc_decode(uint32_t session_id, char *in_buf, int in_buf_len,
+              char **out_buf, int *out_buf_len)
 
+{ 
+    /* 成功返回OK， 失败返回错误值，调用者根据错误值进行处理 BC_EWAITSYN BC_EREQSYN  BC_EHEAD等 */
+    return bc_db_de_data_process(session_id, in_buf, in_buf_len, out_buf, out_buf_len);
+
+}
+
+/* 如果数据长度不够，就返回BC_ETOOSHORT。
+   如果数据长度够，就返回BC_OK, 同时通过require_len值返回实际解码需要的数据长度 */
+int bc_decode_get_len(bc_large_chunk_head_t *head, int in_buf_len, uint32_t *require_len)
+{
+    if (in_buf_len < sizeof(bc_large_chunk_head_t)) {
+        return BC_ETOOSHORT;
+    } else {
+        *require_len = GETLONG(head->len);
+        return BC_OK;
+    }
+}
 

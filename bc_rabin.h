@@ -58,5 +58,9 @@ int bc_rabin_roll(char *pdata,
 
 int md5hash(char *data, uint32_t len, bc_chunk_id_t *hash);
 
+/* 如果数据长度不够，就返回BC_ETOOSHORT。
+   如果数据长度够，就返回BC_OK, 同时通过require_len值返回实际解码需要的数据长度 */
+int bc_decode_get_len(bc_large_chunk_head_t *head, int in_buf_len, uint32_t *require_len);
+
 #endif /*_BC_RABIN_H_*/
 
