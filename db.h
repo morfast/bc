@@ -11,6 +11,7 @@ typedef struct db_key_s {
 
 typedef db_key_t bc_chunk_id_t;
 
+typedef uint32_t db_srec_id_t;
 
 // 数据块 chunk 
 typedef struct bc_chunk_s {
@@ -19,6 +20,7 @@ typedef struct bc_chunk_s {
     bool special;
     bool boundary;
     bc_chunk_id_t id;
+    db_srec_id_t* srec_id;
 } bc_chunk_t;
 
 typedef struct bc_chunkgrp_s {

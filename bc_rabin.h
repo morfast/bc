@@ -20,6 +20,34 @@
 #define DEF_PERIM		5
 #define DEF_ZERO_CNT 	5
 
+typedef enum {
+    BC_DATA_LARGE_CHUNK = 0x0A,
+    BC_DATA_CHUNK_RAW = 0x4A,
+    BC_DATA_CHUNK_SPECIAL = 0x8B,
+    BC_DATA_CHUNK_NEW = 0xBE,
+    BC_DATA_CHUNK_OLD = 0xEF,
+} bc_chunk_type_t;
+
+
+/* message headers for all chunks */
+typedef struct bc_large_chunk_head_s {
+    unsigned char type;
+    unsigned char len[4];
+} bc_large_chunk_head_t;
+
+/* message headers for one chunk */
+typedef struct bc_chunk_head_s {
+    unsigned char type;
+    unsigned char len[2];
+} bc_chunk_head_t;
+
+/* message headers for old chunk, old chunks do not contain data */
+typedef struct bc_old_chunk_s {
+    unsigned char type;
+    unsigned char len[2];
+    db_srec_id_t srec_id;
+} bc_old_chunk_t;
+
 int bc_rabin_init(void);
 int bc_rabin_roll(char *pdata, 
 					uint32_t size, 
