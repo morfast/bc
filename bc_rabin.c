@@ -18,6 +18,8 @@ static uint64_t chara_finger_mask = 0xFFFFFFFFFFFFFF00;
 /******************End of temp*********************/
 
 static uint64_t *polynomial_buf = NULL;
+static char remain_buff[MIN_BLK_SIZE];
+static uint32_t remain_buff_len = 0;
 
 int bc_rabin_init(void)
 {
@@ -145,25 +147,81 @@ int bc_split_into_block(uint32_t session_id, char *pdata,
     chunk_grp->chunk_cnt = ichunk;
 }
 
-int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len,
-              char **out_buf, int *out_buf_len, int *remain_len)
+int get_prev_remain(uint32_t session_id, char **prev_raw, int *prev_raw_len)
+{
+}
+
+char* combine_buf(char *a, int alen, char *b, int blen)
+{
+    char *c;
+
+    c = (char *)malloc(alen + blen);
+    memcpy(c,a,alen);
+    memcpy(c+alen, b, blen);
+
+    return c;
+}
+
+char* combine_3buf(char *a, int alen, char *b, int blen, char *c, int clen)
+{
+    char *d;
+
+    d = (char *)malloc(alen + blen + clen);
+    memcpy(d,a,alen);
+    memcpy(d+alen, b, blen);
+    memcpy(d+alen+blen, c, clen);
+
+    return c;
+}
+
+
+int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
+              char **out_buf, int *out_buf_len, uint32_t *remain_len)
 {
     bc_para_t bc_para;
     bc_chunkgrp_t *chunkgrp;
     bc_chunk_t  *chunk;
+    char *prev_raw;
+    char *in_buf;
+    int prev_raw_len;
+    int in_buf_len;
     int i, nchunk;
     int olen;
 
+    /* TODO */
+    /* combine the remain buffer of the last transfer */
+    get_prev_remain(session_id, &prev_raw, &prev_raw_len);
+    in_buf = combine_buf(prev_raw, prev_raw_len, ori_in_buf, in_buf_len);
+    in_buf_len = ori_in_buf_len + prev_raw_len;
 
+    /* split the combined input buffer into blocks */
     bc_split_into_block(session_id, in_buf, in_buf_len, &bc_para, remain_len);
+    
+    /* cache the blocks to the database */
     //bc_db_en_data_process(&bc_para);
+
+
     /* grab the result */
     chunkgrp = &(bc_para.chunkgrp);
     nchunk = chunkgrp->chunk_cnt;
 
     /* count the total length of the output buffer */
     olen = 0;
-    for(i = 0; i < nchunk; i++) {
+    /* first block: contain prev_raw, special treatment */
+    chunk = (chunkgrp->data_chunk);
+    if ((chunk->start != NULL) && 
+        (chunk->srec_id == NULL)) {
+        /* new chunk */
+        olen += sizeof(bc_chunk_head_t);
+        olen += (chunk->len - prev_raw_len);
+    } else if ((chunk->start == NULL) &&
+          (chunk->srec_id != NULL)) {
+        /* old chunk */
+        olen += sizeof(bc_old_chunk_t);
+    }
+
+    /* other blocks */
+    for(i = 1; i < nchunk; i++) {
         chunk = (chunkgrp->data_chunk) + i;
         if ((chunk->start != NULL) && 
             (chunk->srec_id == NULL)) {
@@ -200,6 +258,30 @@ int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len,
     PUTSHORT(lheader.len, chunk->len);
     memcpy(pout, &lheader, sizeof(lheader));
     pout += (sizeof(lheader));
+
+    /* first block: contain prev_raw, special treatment */
+    chunk = (chunkgrp->data_chunk);
+    if ((chunk->start != NULL) && 
+        (chunk->srec_id == NULL)) {
+        /* new chunk */
+        header.type = BC_DATA_CHUNK_RAW;
+        PUTSHORT(header.len, (ushort)(chunk->len - prev_raw_len));
+        memcpy(pout, &header, sizeof(header));
+        pout += sizeof(header);
+        memcpy(pout, chunk->start + prev_raw_len, chunk->len - prev_raw_len);
+        pout += (chunk->len - prev_raw_len);
+    } else if ((chunk->start == NULL) &&
+          (chunk->srec_id != NULL)) {
+        /* old chunk */
+        ochunk.type = BC_DATA_CHUNK_OLD;
+        PUTSHORT(header.len, (ushort)chunk->len);
+        memcpy(&(ochunk.srec_id), chunk->srec_id, sizeof(db_srec_id_t));
+        memcpy(pout, &ochunk, sizeof(ochunk));
+        pout += sizeof(ochunk);
+
+    }
+
+    /* other blocks */
     for(i = 0; i < nchunk; i++) {
         chunk = (chunkgrp->data_chunk) + i;
         if ((chunk->start != NULL) && 
@@ -235,6 +317,9 @@ int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len,
         memcpy(pout, &header, sizeof(header));
         pout += sizeof(header);
         memcpy(pout, in_buf + (in_buf_len - *remain_len), *remain_len);
+        /* keep this remaining block for next encoding */
+        memcpy(remain_buff, pout, *remain_len);
+        remain_buff_len = *remain_len;
     }
 
     /* free the input buffer */
@@ -248,13 +333,43 @@ int bc_decode(uint32_t session_id, char *in_buf, int in_buf_len,
               char **out_buf, int *out_buf_len)
 
 { 
-    /* 成功返回OK， 失败返回错误值，调用者根据错误值进行处理 BC_EWAITSYN BC_EREQSYN  BC_EHEAD等 */
-    return bc_db_de_data_process(session_id, in_buf, in_buf_len, out_buf, out_buf_len);
+    /* 成功返OK， 失败返回错误值，调用者根据错误值进行处理 BC_EWAITSYN BC_EREQSYN  BC_EHEAD等 */
+    int ret;
+    char *prev_raw;
+    int prev_raw_len;
+    char *pbuf = in_buf;
+    char *in_buf_start = in_buf;
+    char *new_in_buf;
+    unsigned short len;
+    /* add prev_raw_buff to the first chunk */
+    get_prev_remain(session_id, &prev_raw, &prev_raw_len);
+    bc_large_chunk_head_t lheader;
+    bc_chunk_head_t *header;
+
+
+    pbuf += sizeof(lheader);
+    header = (bc_chunk_head_t *)pbuf;
+    if (header->type == BC_DATA_CHUNK_RAW) {
+        // add prev_raw_buff to the front of the value
+        len = GETSHORT(header->len);
+        len += prev_raw_len;
+        PUTSHORT(&(header->len), len);
+        pbuf += sizeof(bc_chunk_head_t);
+        new_in_buf = combine_3buf(in_buf_start, sizeof(lheader) + sizeof(bc_chunk_head_t), 
+                                  prev_raw, prev_raw_len, 
+                                  pbuf, in_buf_len - (sizeof(lheader) + sizeof(bc_chunk_head_t)));
+        //ret = bc_db_de_data_process(session_id, new_in_buf, in_buf_len, out_buf, out_buf_len);
+    } else {
+        //ret = bc_db_de_data_process(session_id, in_buf, in_buf_len, out_buf, out_buf_len);
+    }
+    /* remove prev_raw_buff from the result buffer */
+    *out_buf += prev_raw_len;
+    *out_buf_len -= prev_raw_len;
 
 }
 
-/* 如果数据长度不够，就返回BC_ETOOSHORT。
-   如果数据长度够，就返回BC_OK, 同时通过require_len值返回实际解码需要的数据长度 */
+/* 如果数据长不够，就返回BC_ETOOSHORT。
+   如果数据长够，就返回BC_OK, 同时通过require_len值返回实际解码需要的数据长度 */
 int bc_decode_get_len(bc_large_chunk_head_t *head, int in_buf_len, uint32_t *require_len)
 {
     if (in_buf_len < sizeof(bc_large_chunk_head_t)) {

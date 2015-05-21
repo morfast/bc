@@ -20,6 +20,9 @@
 #define DEF_PERIM		5
 #define DEF_ZERO_CNT 	5
 
+#define BC_OK 0
+#define BC_ETOOSHORT 1
+
 typedef enum {
     BC_DATA_LARGE_CHUNK = 0x0A,
     BC_DATA_CHUNK_RAW = 0x4A,
@@ -58,6 +61,10 @@ int bc_rabin_roll(char *pdata,
 
 int md5hash(char *data, uint32_t len, bc_chunk_id_t *hash);
 
+int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len,
+              char **out_buf, int *out_buf_len, uint32_t *remain_len);
+int bc_decode(uint32_t session_id, char *in_buf, int in_buf_len,
+              char **out_buf, int *out_buf_len);
 /* 如果数据长度不够，就返回BC_ETOOSHORT。
    如果数据长度够，就返回BC_OK, 同时通过require_len值返回实际解码需要的数据长度 */
 int bc_decode_get_len(bc_large_chunk_head_t *head, int in_buf_len, uint32_t *require_len);
