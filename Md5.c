@@ -442,14 +442,14 @@ char *inString;
   printf (" \"%s\"\n\n", inString);
 }
 
-int md5hash(char *buf, uint32_t len, bc_chunk_id_t chunkid)
+int md5hash(char *buf, uint32_t len, bc_chunk_id_t *chunkid)
 {
   MD5_CTX mdContext;
 
   MD5Init (&mdContext);
   MD5Update (&mdContext, buf, len);
   MD5Final (&mdContext);
-  memcpy(chunkid.id, mdContext.digest, 16);
+  memcpy(chunkid->id, mdContext.digest, 16);
 }
 
 
