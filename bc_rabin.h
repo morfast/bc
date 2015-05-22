@@ -13,9 +13,8 @@
 #endif
 
 
-#define DEF_BLK_SIZE	256
-#define MIN_BLK_SIZE 	256
-#define MAX_BLK_SIZE  	512
+#define MIN_BLK_SIZE 	100
+#define MAX_BLK_SIZE  	200
 
 #define DEF_PERIM		5
 #define DEF_ZERO_CNT 	5

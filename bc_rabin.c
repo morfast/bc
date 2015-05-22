@@ -3,6 +3,7 @@
 #include "bc_rabin.h"
 #include "db.h"
 #include "intf_sys.h"
+#include <stdio.h>
 
 /*temp here,may be we should get this config from cfg file*/
 
@@ -12,8 +13,8 @@ static int zero_cnt = DEF_ZERO_CNT;
 static uint16_t max_blksize = MAX_BLK_SIZE;
 static uint16_t min_blksize = MIN_BLK_SIZE;
 
-static uint64_t finger_mask = 0xFFFFFFFFFFFFFFE0;
 static uint64_t chara_finger_mask = 0xFFFFFFFFFFFFFF00;
+static uint64_t finger_mask = 0xFFFFFFFFFFFFFFE0;
 
 /******************End of temp*********************/
 
@@ -76,10 +77,12 @@ int bc_rabin_roll(char *pdata,
 		if( ((fingers & finger_mask) == fingers) && 
             (fingers != 0) ) {
             /* natural_boundary */
+            fprintf(stderr, "natural_boundary found: %x\n", fingers);
 			*roll = fingers;
             *blksize = min_blksize +i;
             *natural_boundary = 1;
             if ((fingers & chara_finger_mask) == fingers) {
+                fprintf(stderr, "special found\n");
                 *special = 1;
             } else {
                 *special = 0;
@@ -89,6 +92,7 @@ int bc_rabin_roll(char *pdata,
         if (min_blksize + i > max_blksize) {
             /* block larger than max_blksize,
                NOT natural_boundary */
+            fprintf(stderr, "m boundary found: %x\n", fingers);
             *blksize = min_blksize +i;
 			*roll = fingers;
             *natural_boundary = 0;
@@ -139,6 +143,7 @@ int bc_split_into_block(uint32_t session_id, char *pdata,
         chunk->len = blksize;
         chunk->boundary = nt_bond;
         chunk->special = special;
+        chunk->srec_id = NULL;
         md5hash(pdata, blksize, &(chunk->id));
 
         pdata += blksize;
@@ -173,7 +178,7 @@ char* combine_3buf(char *a, int alen, char *b, int blen, char *c, int clen)
     memcpy(d+alen, b, blen);
     memcpy(d+alen+blen, c, clen);
 
-    return c;
+    return d;
 }
 
 
@@ -191,10 +196,9 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
     int olen;
     uint32_t remain_len;
 
-    /* TODO */
     /* combine the remain buffer of the last transfer */
     get_prev_remain(session_id, &prev_raw, &prev_raw_len);
-    in_buf = combine_buf(prev_raw, prev_raw_len, ori_in_buf, ori_in_buf_len);
+    in_buf = (char *)combine_buf(prev_raw, prev_raw_len, ori_in_buf, ori_in_buf_len);
     in_buf_len = ori_in_buf_len + prev_raw_len;
 
     /* split the combined input buffer into blocks */
@@ -210,6 +214,9 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
 
     /* count the total length of the output buffer */
     olen = 0;
+    /* the header for all chunks */
+    olen += sizeof(bc_large_chunk_head_t);
+    fprintf(stderr, "olen: %d\n", olen);
     /* first block: contain prev_raw, special treatment */
     chunk = (chunkgrp->data_chunk);
     if ((chunk->start != NULL) && 
@@ -222,6 +229,7 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         /* old chunk */
         olen += sizeof(bc_old_chunk_t);
     }
+    fprintf(stderr, "olen: %d\n", olen);
 
     /* other blocks */
     for(i = 1; i < nchunk; i++) {
@@ -239,13 +247,13 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
             olen += (sizeof(bc_old_chunk_t));
         }
     }
+    fprintf(stderr, "olen: %d\n", olen);
     /* raw block */
     if (remain_len != 0) {
         olen += remain_len;
         olen += sizeof(bc_chunk_head_t);
     }
-    /* the header for all chunks */
-    olen += sizeof(bc_large_chunk_head_t);
+    fprintf(stderr, "olen: %d\n", olen);
 
     /* allocate output buffer */
     *out_buf_len = olen;
@@ -258,15 +266,17 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
     bc_old_chunk_t ochunk;
     /* large header */
     lheader.type = BC_DATA_LARGE_CHUNK;
-    PUTSHORT(lheader.len, chunk->len);
+    PUTSHORT(lheader.len, olen-sizeof(bc_large_chunk_head_t));
     memcpy(pout, &lheader, sizeof(lheader));
     pout += (sizeof(lheader));
+    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
 
     /* first block: contain prev_raw, special treatment */
     chunk = (chunkgrp->data_chunk);
     if ((chunk->start != NULL) && 
         (chunk->srec_id == NULL)) {
         /* new chunk */
+        fprintf(stderr, "new chunk\n");
         header.type = BC_DATA_CHUNK_RAW;
         PUTSHORT(header.len, (ushort)(chunk->len - prev_raw_len));
         memcpy(pout, &header, sizeof(header));
@@ -278,6 +288,7 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         /* old chunk */
         /* adjust the offset */
         //bc_db_adjust_srec_id(chunk->srec_id, prev_raw_len);
+        fprintf(stderr, "old chunk\n");
         ochunk.type = BC_DATA_CHUNK_OLD;
         PUTSHORT(header.len, (ushort)chunk->len);
         memcpy(&(ochunk.srec_id), chunk->srec_id, sizeof(db_srec_id_t));
@@ -285,12 +296,14 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         pout += sizeof(ochunk);
 
     }
+    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
 
     /* other blocks */
-    for(i = 0; i < nchunk; i++) {
+    for(i = 1; i < nchunk; i++) {
         chunk = (chunkgrp->data_chunk) + i;
         if ((chunk->start != NULL) && 
             (chunk->srec_id == NULL)) {
+            fprintf(stderr, "new chunk\n");
             /* new chunk */
             if (chunk->special == 0) {
                 /* normal chunk */
@@ -308,6 +321,7 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         } else if ((chunk->start == NULL) &&
               (chunk->srec_id != NULL)) {
             /* old chunk */
+            fprintf(stderr, "old chunk\n");
             ochunk.type = BC_DATA_CHUNK_OLD;
             PUTSHORT(header.len, (ushort)chunk->len);
             memcpy(&(ochunk.srec_id), chunk->srec_id, sizeof(db_srec_id_t));
@@ -315,8 +329,10 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
             pout += sizeof(ochunk);
         }
     }
+    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
     /* raw block */
     if (remain_len != 0) {
+        fprintf(stderr, "remain_len: %d\n", remain_len);
         header.type = BC_DATA_CHUNK_RAW;
         PUTSHORT(header.len, (ushort)chunk->len);
         memcpy(pout, &header, sizeof(header));
@@ -325,9 +341,12 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         /* keep this remaining block for next encoding */
         memcpy(remain_buff, pout, remain_len);
         remain_buff_len = remain_len;
+        pout += remain_len;
     }
+    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
 
     /* free the input buffer */
+    free(ori_in_buf);
     free(in_buf);
 
     return 0;
@@ -370,6 +389,9 @@ int bc_decode(uint32_t session_id, char *in_buf, int in_buf_len,
     /* remove prev_raw_buff from the result buffer */
     *out_buf += prev_raw_len;
     *out_buf_len -= prev_raw_len;
+
+    free(new_in_buf);
+    free(in_buf);
 
 }
 
