@@ -62,7 +62,7 @@ int bc_rabin_roll(char *pdata,
 int md5hash(char *data, uint32_t len, bc_chunk_id_t *hash);
 
 int bc_encode(uint32_t session_id, char *in_buf, int in_buf_len,
-              char **out_buf, int *out_buf_len, uint32_t *remain_len);
+              char **out_buf, int *out_buf_len);
 int bc_decode(uint32_t session_id, char *in_buf, int in_buf_len,
               char **out_buf, int *out_buf_len);
 /* 如果数据长度不够，就返回BC_ETOOSHORT。

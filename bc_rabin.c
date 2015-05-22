@@ -149,6 +149,8 @@ int bc_split_into_block(uint32_t session_id, char *pdata,
 
 int get_prev_remain(uint32_t session_id, char **prev_raw, int *prev_raw_len)
 {
+    *prev_raw = remain_buff;
+    *prev_raw_len = remain_buff_len;
 }
 
 char* combine_buf(char *a, int alen, char *b, int blen)
@@ -176,7 +178,7 @@ char* combine_3buf(char *a, int alen, char *b, int blen, char *c, int clen)
 
 
 int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
-              char **out_buf, int *out_buf_len, uint32_t *remain_len)
+              char **out_buf, int *out_buf_len)
 {
     bc_para_t bc_para;
     bc_chunkgrp_t *chunkgrp;
@@ -187,15 +189,16 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
     int in_buf_len;
     int i, nchunk;
     int olen;
+    uint32_t remain_len;
 
     /* TODO */
     /* combine the remain buffer of the last transfer */
     get_prev_remain(session_id, &prev_raw, &prev_raw_len);
-    in_buf = combine_buf(prev_raw, prev_raw_len, ori_in_buf, in_buf_len);
+    in_buf = combine_buf(prev_raw, prev_raw_len, ori_in_buf, ori_in_buf_len);
     in_buf_len = ori_in_buf_len + prev_raw_len;
 
     /* split the combined input buffer into blocks */
-    bc_split_into_block(session_id, in_buf, in_buf_len, &bc_para, remain_len);
+    bc_split_into_block(session_id, in_buf, in_buf_len, &bc_para, &remain_len);
     
     /* cache the blocks to the database */
     //bc_db_en_data_process(&bc_para);
@@ -237,8 +240,8 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         }
     }
     /* raw block */
-    if (*remain_len != 0) {
-        olen += *remain_len;
+    if (remain_len != 0) {
+        olen += remain_len;
         olen += sizeof(bc_chunk_head_t);
     }
     /* the header for all chunks */
@@ -273,6 +276,8 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
     } else if ((chunk->start == NULL) &&
           (chunk->srec_id != NULL)) {
         /* old chunk */
+        /* adjust the offset */
+        //bc_db_adjust_srec_id(chunk->srec_id, prev_raw_len);
         ochunk.type = BC_DATA_CHUNK_OLD;
         PUTSHORT(header.len, (ushort)chunk->len);
         memcpy(&(ochunk.srec_id), chunk->srec_id, sizeof(db_srec_id_t));
@@ -311,15 +316,15 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         }
     }
     /* raw block */
-    if (*remain_len != 0) {
+    if (remain_len != 0) {
         header.type = BC_DATA_CHUNK_RAW;
         PUTSHORT(header.len, (ushort)chunk->len);
         memcpy(pout, &header, sizeof(header));
         pout += sizeof(header);
-        memcpy(pout, in_buf + (in_buf_len - *remain_len), *remain_len);
+        memcpy(pout, in_buf + (in_buf_len - remain_len), remain_len);
         /* keep this remaining block for next encoding */
-        memcpy(remain_buff, pout, *remain_len);
-        remain_buff_len = *remain_len;
+        memcpy(remain_buff, pout, remain_len);
+        remain_buff_len = remain_len;
     }
 
     /* free the input buffer */

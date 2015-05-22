@@ -40,6 +40,7 @@ typedef struct bc_para_s {
 } bc_para_t;
 
 int bc_db_en_data_process(bc_para_t *bc_para);
+int bc_db_adjust_srec_id(db_srec_id_t* srec_id, int vain_len);
 
 
 /* 成功返回OK， 失败返回错误值，调用者根据错误值进行处理 BC_EWAITSYN BC_EREQSYN  BC_EHEAD等 */
