@@ -156,6 +156,11 @@ int get_prev_remain(uint32_t session_id, char **prev_raw, int *prev_raw_len)
 {
     *prev_raw = remain_buff;
     *prev_raw_len = remain_buff_len;
+    //TODO
+    //bc_session_t *session;
+    //session = proxy_get_bc_session(session_id);
+    //*prev_raw = session->prev_raw;
+    //*prev_raw_len = session->raw_data_len;
 }
 
 char* combine_buf(char *a, int alen, char *b, int blen)
@@ -205,6 +210,7 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
     bc_split_into_block(session_id, in_buf, in_buf_len, &bc_para, &remain_len);
     
     /* cache the blocks to the database */
+    //TODO
     //bc_db_en_data_process(&bc_para);
 
 
@@ -287,6 +293,7 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
           (chunk->srec_id != NULL)) {
         /* old chunk */
         /* adjust the offset */
+        //TODO
         //bc_db_adjust_srec_id(chunk->srec_id, prev_raw_len);
         fprintf(stderr, "old chunk\n");
         ochunk.type = BC_DATA_CHUNK_OLD;
@@ -382,8 +389,10 @@ int bc_decode(uint32_t session_id, char *in_buf, int in_buf_len,
         new_in_buf = combine_3buf(in_buf_start, sizeof(lheader) + sizeof(bc_chunk_head_t), 
                                   prev_raw, prev_raw_len, 
                                   pbuf, in_buf_len - (sizeof(lheader) + sizeof(bc_chunk_head_t)));
+        //TODO
         //ret = bc_db_de_data_process(session_id, new_in_buf, in_buf_len, out_buf, out_buf_len);
     } else {
+        //TODO
         //ret = bc_db_de_data_process(session_id, in_buf, in_buf_len, out_buf, out_buf_len);
     }
     /* remove prev_raw_buff from the result buffer */
