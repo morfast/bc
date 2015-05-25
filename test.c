@@ -26,14 +26,23 @@ int test_encode()
     char *outbuf;
     int out_buf_len;
     int i, ir;
+    int j;
 
     in_buf_len = BUF_SIZE;
     session_id = 1;
 
-    for (ir = 0; ir < 9; ir++) {
+    srand(time(NULL));
+    for (ir = 0; ir < 2; ir++) {
+        fprintf(stderr, "======================\n");
         in_buf = (char *)malloc(BUF_SIZE);
         for (i = 0; i < in_buf_len; i++) {
             in_buf[i] = i % 10;
+        }
+        // tiny modification
+        if (ir > 0) {
+            for (j = 0; j < 1; j++) {
+                in_buf[rand() % BUF_SIZE] = 0;
+            }
         }
         bc_encode(session_id, in_buf, in_buf_len, &outbuf, &out_buf_len);
     }

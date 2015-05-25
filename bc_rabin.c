@@ -222,7 +222,6 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
     olen = 0;
     /* the header for all chunks */
     olen += sizeof(bc_large_chunk_head_t);
-    fprintf(stderr, "olen: %d\n", olen);
     /* first block: contain prev_raw, special treatment */
     chunk = (chunkgrp->data_chunk);
     if ((chunk->start != NULL) && 
@@ -235,7 +234,6 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         /* old chunk */
         olen += sizeof(bc_old_chunk_t);
     }
-    fprintf(stderr, "olen: %d\n", olen);
 
     /* other blocks */
     for(i = 1; i < nchunk; i++) {
@@ -253,13 +251,11 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
             olen += (sizeof(bc_old_chunk_t));
         }
     }
-    fprintf(stderr, "olen: %d\n", olen);
     /* raw block */
     if (remain_len != 0) {
         olen += remain_len;
         olen += sizeof(bc_chunk_head_t);
     }
-    fprintf(stderr, "olen: %d\n", olen);
 
     /* allocate output buffer */
     *out_buf_len = olen;
@@ -275,7 +271,6 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
     PUTSHORT(lheader.len, olen-sizeof(bc_large_chunk_head_t));
     memcpy(pout, &lheader, sizeof(lheader));
     pout += (sizeof(lheader));
-    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
 
     /* first block: contain prev_raw, special treatment */
     chunk = (chunkgrp->data_chunk);
@@ -303,7 +298,6 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         pout += sizeof(ochunk);
 
     }
-    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
 
     /* other blocks */
     for(i = 1; i < nchunk; i++) {
@@ -336,7 +330,6 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
             pout += sizeof(ochunk);
         }
     }
-    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
     /* raw block */
     if (remain_len != 0) {
         fprintf(stderr, "remain_len: %d\n", remain_len);
@@ -350,7 +343,6 @@ int bc_encode(uint32_t session_id, char *ori_in_buf, int ori_in_buf_len,
         remain_buff_len = remain_len;
         pout += remain_len;
     }
-    fprintf(stderr, "pout: %d\n", (pout - *out_buf));
 
     /* free the input buffer */
     free(ori_in_buf);
